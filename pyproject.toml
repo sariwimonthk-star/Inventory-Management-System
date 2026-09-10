@@ -1,0 +1,26 @@
+[project]
+name = "inventory-management-system"
+version = "1.0.0"
+description = "โปรแกรม Flet สำหรับเพิ่ม ค้นหา แก้ไข และลบข้อมูลสินค้าในคลัง พร้อมสรุปสต็อกแบบทันที."
+requires-python = ">=3.12"
+authors = [
+    { name = "Mochill Luv", email = "jinare18@gmail.com" }
+]
+dependencies = [
+    "flet"
+]
+
+[dependency-groups]
+dev = [
+    "flet-cli",
+    "flet-desktop",
+    "flet-web"
+]
+
+[tool.flet.metadata]
+title = "ระบบจัดการคลังสินค้า"
+
+[tool.flet]
+org = "dev.flet"
+company = "Mochill Luv"
+copyright = "Copyright (C) 2026 by Mochill Luv"
