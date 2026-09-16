@@ -1,4 +1,4 @@
-"""In-memory inventory data and business rules (no Flet dependency)."""
+"""Initial inventory data and business rules (no Flet dependency)."""
 
 CATEGORIES = [
     "อุปกรณ์คอมพิวเตอร์",
@@ -13,7 +13,7 @@ SAMPLE_PRODUCTS = [
     {"id": "P002", "name": "Keyboard", "category": "อุปกรณ์คอมพิวเตอร์", "price": 590.0, "quantity": 8, "date": "08/08/2026"},
     {"id": "P003", "name": "USB Cable", "category": "อุปกรณ์เสริม", "price": 120.0, "quantity": 0, "date": "08/08/2026"},
     {"id": "P004", "name": "Powerbank", "category": "อุปกรณ์เสริม", "price": 490.0, "quantity": 25, "date": "09/08/2026"},
-    {"id": "P005", "name": "TV", "category": "อุปกรณ์ไฟฟ้า", "price": 5990.0, "quantity": 20, "date": "09/08/2026"},
+    {"id": "P005", "name": "TV", "category": "เครื่องใช้ไฟฟ้า", "price": 5990.0, "quantity": 20, "date": "09/08/2026"},
 ]
 
 
@@ -32,6 +32,8 @@ def inventory_summary(products: list[dict]) -> dict[str, float | int]:
         "items": len(products),
         "quantity": sum(product["quantity"] for product in products),
         "low_stock": sum(0 < product["quantity"] < 10 for product in products),
+        "out_of_stock": sum(product["quantity"] == 0 for product in products),
+        "needs_stock": sum(product["quantity"] < 10 for product in products),
         "value": sum(product["price"] * product["quantity"] for product in products),
     }
 

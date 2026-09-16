@@ -9,8 +9,8 @@ def main(page: ft.Page):
     page.bgcolor = "#F6F8FC"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.horizontal_alignment = ft.CrossAxisAlignment.STRETCH
-    page.window_min_width = 980
-    page.window_min_height = 720
+    page.window.min_width = 600
+    page.window.min_height = 500
     page.add(InventoryView(page))
 
 
