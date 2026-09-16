@@ -12,6 +12,8 @@ SAMPLE_PRODUCTS = [
     {"id": "P001", "name": "Mouse", "category": "อุปกรณ์คอมพิวเตอร์", "price": 250.0, "quantity": 20, "date": "08/08/2026"},
     {"id": "P002", "name": "Keyboard", "category": "อุปกรณ์คอมพิวเตอร์", "price": 590.0, "quantity": 8, "date": "08/08/2026"},
     {"id": "P003", "name": "USB Cable", "category": "อุปกรณ์เสริม", "price": 120.0, "quantity": 0, "date": "08/08/2026"},
+    {"id": "P004", "name": "Powerbank", "category": "อุปกรณ์เสริม", "price": 490.0, "quantity": 25, "date": "09/08/2026"},
+    {"id": "P005", "name": "TV", "category": "อุปกรณ์ไฟฟ้า", "price": 5990.0, "quantity": 20, "date": "09/08/2026"},
 ]
 
 
