@@ -4,7 +4,7 @@ from views.inventory_view import InventoryView
 
 
 def main(page: ft.Page):
-    page.title = "Inventory-Management-System"
+    page.title = "คลังสินค้า | Inventory Management"
     page.padding = 0
     page.bgcolor = "#F6F8FC"
     page.theme_mode = ft.ThemeMode.LIGHT

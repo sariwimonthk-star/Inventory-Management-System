@@ -143,6 +143,56 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(self.store.products()[0]['quantity'], 25)
         self.assertEqual(len(self.store.history()), 1)
 
+    def test_reopening_editor_loads_latest_stock(self):
+        page = PageStub()
+        with patch('views.inventory_view.InventoryStore', return_value=self.store):
+            view = InventoryView(page)
+        cached = view.products[0]
+        self.store.adjust(cached['id'], 5, 'delivery')
+        view.edit_product(cached)
+        self.assertEqual(view.quantity_field.value, '25')
+        view.name_field.value = 'Updated'
+        view.save_edit(None)
+        self.assertEqual(self.store.products()[0]['quantity'], 25)
+        self.assertEqual(self.store.products()[0]['name'], 'Updated')
+
+    def test_stock_movement_repeated_click_only_saves_once(self):
+        page = PageStub()
+        with patch('views.inventory_view.InventoryStore', return_value=self.store):
+            view = InventoryView(page)
+        view.open_movement(view.products[0])
+        dialog = page.dialogs[-1]
+        dialog.content.controls[2].value = '3'
+        dialog.content.controls[3].value = 'delivery'
+        save = dialog.actions[1].on_click
+        save(None)
+        save(None)
+        self.assertEqual(self.store.products()[0]['quantity'], 23)
+        self.assertEqual(len(self.store.history()), 1)
+
+    def test_date_field_opens_picker_and_reopens_after_selection(self):
+        from datetime import datetime
+        from types import SimpleNamespace
+        page = PageStub()
+        with patch('views.inventory_view.InventoryStore', return_value=self.store):
+            view = InventoryView(page)
+        view.new_product(None)
+        view.date_field.on_click(None)
+        first = view.date_picker
+        view.open_date_picker(None)
+        self.assertIs(view.date_picker, first)
+        first.value = datetime(2026, 9, 10)
+        view.set_received_date(SimpleNamespace(control=first))
+        self.assertEqual(view.date_field.value, '10/09/2026')
+        view.open_date_picker(None)
+        second = view.date_picker
+        self.assertIsNot(second, first)
+        self.assertEqual(second.value, datetime(2026, 9, 10))
+        view.dismiss_date_picker(SimpleNamespace(control=second))
+        view.open_date_picker(None)
+        self.assertIsNot(view.date_picker, second)
+        self.assertEqual(view.date_field.value, '10/09/2026')
+
     def test_dialog_field_updates_target_the_field(self):
         page = PageStub()
         with patch('views.inventory_view.InventoryStore', return_value=self.store):

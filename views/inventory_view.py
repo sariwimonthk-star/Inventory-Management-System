@@ -7,8 +7,8 @@ from views.inventory_table import InventoryTable
 import flet as ft
 from models import CATEGORIES, calculate_status, filter_products, inventory_summary
 
-APP_HEADING = "Inventory-Management-System"
-APP_TAGLINE = "ระบบจัดการคลังสินค้า"
+APP_HEADING = "คลังสินค้า"
+APP_TAGLINE = "จัดการสินค้าและติดตามสต็อกในที่เดียว"
 
 
 class InventoryView(ft.Container):
@@ -23,7 +23,7 @@ class InventoryView(ft.Container):
         self.category_field = ft.Dropdown(label="ประเภทสินค้า", hint_text="เลือกประเภท", width=180, options=[ft.DropdownOption(key=x, text=x) for x in CATEGORIES])
         self.price_field = self.field("ราคาต่อหน่วย (บาท)", "0.00", keyboard_type=ft.KeyboardType.NUMBER)
         self.quantity_field = self.field("จำนวนคงเหลือ", "0", keyboard_type=ft.KeyboardType.NUMBER, on_change=self.update_status_preview)
-        self.date_field = ft.TextField(label="วันที่รับเข้า", hint_text="เลือกวันที่", width=180, read_only=True)
+        self.date_field = ft.TextField(label="วันที่รับเข้า", hint_text="คลิกเพื่อเลือกวันที่", width=180, read_only=True, on_click=self.open_date_picker)
         self.status_group = ft.RadioGroup(value="พร้อมขาย", disabled=True, content=ft.Row(controls=[ft.Radio(value="พร้อมขาย", label="พร้อมขาย"), ft.Radio(value="ใกล้หมด", label="ใกล้หมด"), ft.Radio(value="หมด", label="หมด")], wrap=True, spacing=12))
         self.date_picker = ft.DatePicker(first_date=datetime(2020, 1, 1), last_date=datetime(2035, 12, 31), on_change=self.set_received_date, help_text="เลือกวันที่รับสินค้าเข้าคลัง", confirm_text="เลือก", cancel_text="ยกเลิก")
         self.add_button = ft.Button(content="เพิ่มสินค้าเข้าคลัง", icon=ft.Icons.ADD, bgcolor=self.INDIGO, color=ft.Colors.WHITE, on_click=self.add_product)
@@ -44,25 +44,38 @@ class InventoryView(ft.Container):
         form = self.panel(ft.Column(controls=[self.heading(ft.Icons.EDIT_NOTE, "ข้อมูลสินค้า", "เพิ่มหรือปรับข้อมูลสินค้าในคลัง"), ft.Divider(height=1), ft.Text("ข้อมูลสินค้า", weight=ft.FontWeight.W_600, color=self.NAVY), ft.Row(controls=[self.id_field, self.name_field, self.category_field], wrap=True, run_spacing=12), ft.Row(controls=[self.price_field, self.quantity_field, ft.Row(controls=[self.date_field, ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, icon_color=self.INDIGO, tooltip="เลือกวันที่รับเข้า", on_click=self.open_date_picker)], vertical_alignment=ft.CrossAxisAlignment.END, spacing=0)], wrap=True, run_spacing=12), ft.Container(content=ft.Column(controls=[ft.Text("สถานะสินค้า", weight=ft.FontWeight.W_600, color=self.NAVY), ft.Text("คำนวณจากจำนวนคงเหลือโดยอัตโนมัติ", size=12, color=ft.Colors.GREY_700), self.status_group], spacing=4), padding=14, bgcolor="#F7FAFC", border_radius=10), ft.Row(controls=[self.add_button, self.save_button, self.clear_button], wrap=True, spacing=10)], spacing=14, scroll=ft.ScrollMode.AUTO, height=460), width=660)
         self.form_panel = form
         self.form_dialog = None
-        alert_panel = ft.Container(content=ft.Column(controls=[self.heading(ft.Icons.NOTIFICATIONS_ACTIVE, "แจ้งเตือนสต็อก", "รายการที่ต้องเติมสินค้า"), ft.Divider(height=1), self.alert_count, self.alert_list, ft.Button(content="ดูรายการที่ต้องเติมทั้งหมด", on_click=lambda e: self.filter_status("ต้องเติมสต็อก")), ft.Container(content=ft.Text("แจ้งเตือนเมื่อคงเหลือน้อยกว่า 10 ชิ้น", size=12, color=ft.Colors.GREY_700), padding=10, bgcolor="#EEF2FF", border_radius=8)], spacing=10), col={"xs": 12, "xl": 3}, padding=14, bgcolor="#FAFBFD", border_radius=12)
+        alert_panel = ft.Container(content=ft.Column(controls=[self.heading(ft.Icons.NOTIFICATIONS_ACTIVE, "แจ้งเตือนสต็อก", "คลิกรายการเพื่อเติมสต็อก"), ft.Divider(height=1), self.alert_count, self.alert_list, ft.Button(content="ดูรายการที่ต้องเติมทั้งหมด", on_click=lambda e: self.filter_status("ต้องเติมสต็อก")), ft.Container(content=ft.Text("แจ้งเตือนเมื่อคงเหลือน้อยกว่า 10 ชิ้น", size=12, color=ft.Colors.GREY_700), padding=10, bgcolor="#EEF2FF", border_radius=8)], spacing=10), col={"xs": 12, "xl": 3}, padding=14, bgcolor="#FAFBFD", border_radius=12)
         catalogue_header = ft.Row(controls=[ft.Container(content=self.heading(ft.Icons.TABLE_ROWS, "รายการสินค้า", "ค้นหา ตรวจสอบ และจัดการรายการทั้งหมด"), expand=True), ft.Button(content="เพิ่มสินค้า", icon=ft.Icons.ADD, bgcolor=self.INDIGO, color=ft.Colors.WHITE, on_click=self.new_product)], vertical_alignment=ft.CrossAxisAlignment.CENTER)
         self.table.width = self.table_width(page.width)
         self.table_area = ft.Row(controls=[self.table], scroll=ft.ScrollMode.ADAPTIVE)
         self.search_field.width = 280
         self.category_filter.width = 180
         self.status_filter.width = 160
+        for control in (self.search_field, self.category_filter, self.status_filter):
+            control.border_color = "#DCE3EF"
+            control.focused_border_color = self.INDIGO
+            control.border_radius = 12
+            control.filled = True
+            control.fill_color = "#F8FAFD"
+            control.text_size = 14
+        self.result_count.size = 12
+        self.result_count.color = "#64748B"
         toolbar = ft.Row(controls=[self.search_field, self.category_filter, self.status_filter, self.search_button, self.clear_search_button], wrap=True, run_spacing=10)
         catalogue = self.panel(ft.ResponsiveRow(controls=[ft.Column(controls=[catalogue_header, toolbar, ft.Row(controls=[self.result_count, ft.Button(content="ประวัติสต็อก", icon=ft.Icons.HISTORY, on_click=self.show_history)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), self.table_area], spacing=12, col={"xs": 12, "xl": 9}), alert_panel], spacing=20, run_spacing=20))
-        content = ft.Column(controls=[self.hero(), ft.Text("ภาพรวมคลังสินค้า", size=16, weight=ft.FontWeight.W_600, color=self.NAVY), ft.ResponsiveRow(controls=[self.summary_card("สินค้าในระบบ", self.summary_values["items"], ft.Icons.INVENTORY_2, "#E8EEFF", self.INDIGO), self.summary_card("จำนวนคงเหลือ", self.summary_values["quantity"], ft.Icons.STACKED_BAR_CHART, "#E3F9EA", "#087F5B"), self.summary_card("สินค้าที่ต้องเติม", self.summary_values["low_stock"], ft.Icons.WARNING_AMBER_ROUNDED, "#FFF3DD", "#C05621"), self.summary_card("มูลค่าสินค้าคงเหลือ", self.summary_values["value"], ft.Icons.ACCOUNT_BALANCE_WALLET, "#F1EAFF", "#6D28D9")], spacing=12), catalogue], scroll=ft.ScrollMode.AUTO, spacing=14, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
-        super().__init__(content=content, padding=24, bgcolor=self.SURFACE, expand=True)
+        content = ft.Column(controls=[self.hero(), ft.ResponsiveRow(controls=[self.summary_card("สินค้าในระบบ", self.summary_values["items"], ft.Icons.INVENTORY_2, "#E8EEFF", self.INDIGO), self.summary_card("จำนวนคงเหลือ", self.summary_values["quantity"], ft.Icons.STACKED_BAR_CHART, "#E3F9EA", "#087F5B"), self.summary_card("สินค้าที่ต้องเติม", self.summary_values["low_stock"], ft.Icons.WARNING_AMBER_ROUNDED, "#FFF3DD", "#C05621"), self.summary_card("มูลค่าสินค้าคงเหลือ", self.summary_values["value"], ft.Icons.ACCOUNT_BALANCE_WALLET, "#F1EAFF", "#6D28D9")], spacing=12), catalogue], scroll=ft.ScrollMode.AUTO, spacing=14, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
+        super().__init__(content=content, padding=20, bgcolor=self.SURFACE, expand=True)
         self.update_summary_values(); self.update_alerts()
         page.on_resize = self.on_resize
 
     def field(self, label, hint, **kwargs): return ft.TextField(label=label, hint_text=hint, width=180, **kwargs)
-    def metric(self, color): return ft.Text("0", size=28, weight=ft.FontWeight.BOLD, color=color)
+    def metric(self, color): return ft.Text("0", size=25, weight=ft.FontWeight.BOLD, color=color)
     def hero(self):
-        return ft.Container(content=ft.Row(controls=[ft.Container(content=ft.Icon(ft.Icons.WAREHOUSE_ROUNDED, color=self.INDIGO, size=25), padding=10, bgcolor="#E8EEFF", border_radius=12), ft.Column(controls=[ft.Text(APP_HEADING, size=24, weight=ft.FontWeight.BOLD, color=self.NAVY), ft.Text(APP_TAGLINE, size=13, color=ft.Colors.GREY_700)], spacing=1)], spacing=12), padding=ft.Padding.only(bottom=4))
-    def panel(self, content, width=None): return ft.Card(content=ft.Container(content=content, padding=20, width=width, border_radius=16), elevation=0, bgcolor=ft.Colors.WHITE)
+        return ft.Container(content=ft.Row(controls=[
+            ft.Container(content=ft.Icon(ft.Icons.WAREHOUSE_ROUNDED, color="#FFFFFF", size=27), padding=12, bgcolor=self.INDIGO, border_radius=14),
+            ft.Column(controls=[ft.Text(APP_HEADING, size=26, weight=ft.FontWeight.BOLD, color=self.NAVY), ft.Text(APP_TAGLINE, size=13, color="#64748B")], spacing=2, expand=True),
+            ft.Container(content=ft.Row(controls=[ft.Icon(ft.Icons.CALENDAR_MONTH, size=16, color="#64748B"), ft.Text(datetime.now().strftime("%d/%m/%Y"), size=12, color="#64748B")], tight=True), padding=10, bgcolor="#FFFFFF", border_radius=10),
+        ], spacing=14), padding=ft.Padding.only(bottom=8))
+    def panel(self, content, width=None): return ft.Card(content=ft.Container(content=content, padding=16, width=width, border_radius=16, border=ft.Border.all(1, "#E7ECF4")), elevation=0, bgcolor=ft.Colors.WHITE)
     def heading(self, icon, title, subtitle): return ft.Row(controls=[ft.Container(content=ft.Icon(icon, color=self.INDIGO, size=22), padding=9, bgcolor="#E8EEFF", border_radius=10), ft.Column(controls=[ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=self.NAVY), ft.Text(subtitle, size=12, color=ft.Colors.GREY_700)], spacing=2)], spacing=10)
     def summary_card(self, label, value, icon, tint, accent):
         needs_stock = value is self.summary_values["low_stock"]
@@ -71,20 +84,22 @@ class InventoryView(ft.Container):
             details.append(self.stock_breakdown)
         return ft.Card(content=ft.Container(
             content=ft.Row(controls=[ft.Column(controls=details, spacing=5, expand=True), ft.Container(content=ft.Icon(icon, color=accent, size=25), padding=12, bgcolor=tint, border_radius=12)], vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            height=120, padding=16,
+            height=104, padding=16, border_radius=14, border=ft.Border.all(1, "#E7ECF4"),
             tooltip="ผลรวมราคาต่อหน่วย × จำนวนคงเหลือของสินค้าทั้งหมด" if value is self.summary_values["value"] else None,
             on_click=lambda e: self.filter_status("ต้องเติมสต็อก" if needs_stock else "ทั้งหมด")),
             elevation=0, bgcolor=ft.Colors.WHITE, col={"xs": 12, "sm": 6, "xl": 3})
     def make_rows(self, products):
-        return [ft.DataRow(cells=[ft.DataCell(ft.Text(p["id"], weight=ft.FontWeight.W_600, color=self.INDIGO)), ft.DataCell(ft.Text(p["name"])), ft.DataCell(ft.Text(p["category"])), ft.DataCell(ft.Text(f"฿{p['price']:,.2f}")), ft.DataCell(ft.Text(str(p["quantity"]))), ft.DataCell(ft.Text(p["date"])), ft.DataCell(self.status_badge(calculate_status(p["quantity"]))), ft.DataCell(ft.Row(controls=[ft.IconButton(icon=ft.Icons.SWAP_VERT, tooltip="รับเข้า / เบิกออก", on_click=lambda e, item=p: self.open_movement(item)), ft.IconButton(icon=ft.Icons.EDIT_OUTLINED, icon_color=self.INDIGO, tooltip="แก้ไข", on_click=lambda e, item=p: self.edit_product(item)), ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color="#C53030", tooltip="ลบ", on_click=lambda e, item=p: self.confirm_delete(item))], spacing=0))]) for p in products]
+        return [ft.DataRow(cells=[ft.DataCell(ft.Text(p["id"], weight=ft.FontWeight.W_600, color=self.INDIGO)), ft.DataCell(ft.Text(p["name"], weight=ft.FontWeight.W_600, color=self.NAVY)), ft.DataCell(ft.Text(p["category"])), ft.DataCell(ft.Text(f"฿{p['price']:,.2f}")), ft.DataCell(ft.Text(str(p["quantity"]), weight=ft.FontWeight.BOLD, color="#B91C1C" if p["quantity"] == 0 else "#B45309" if p["quantity"] < 10 else self.NAVY)), ft.DataCell(ft.Text(p["date"])), ft.DataCell(self.status_badge(calculate_status(p["quantity"]))), ft.DataCell(ft.Row(controls=[ft.IconButton(icon=ft.Icons.SWAP_VERT, icon_color=self.INDIGO, tooltip="รับเข้า / เบิกออก", on_click=lambda e, item=p: self.open_movement(item)), ft.IconButton(icon=ft.Icons.EDIT_OUTLINED, icon_color=self.INDIGO, tooltip="แก้ไข", on_click=lambda e, item=p: self.edit_product(item)), ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color="#C53030", tooltip="ลบ", on_click=lambda e, item=p: self.confirm_delete(item))], spacing=0))]) for p in products]
     def status_badge(self, status):
         bg, fg, icon = {"พร้อมขาย": ("#D9FBE8", "#087F5B", ft.Icons.CHECK_CIRCLE), "ใกล้หมด": ("#FFF3DD", "#B45309", ft.Icons.WARNING_AMBER_ROUNDED), "หมด": ("#FEE2E2", "#B91C1C", ft.Icons.ERROR_OUTLINE)}[status]
         return ft.Container(content=ft.Row(controls=[ft.Icon(icon, size=15, color=fg), ft.Text(status, color=fg, size=12)], tight=True, spacing=5), bgcolor=bg, padding=8, border_radius=16)
     def update_alerts(self):
-        alerts = [p for p in self.products if p["quantity"] < 10]
+        alerts = sorted([p for p in self.products if p["quantity"] < 10], key=lambda p: p["quantity"])
         self.alert_count.value = f"ใกล้หมด {sum(0 < p['quantity'] < 10 for p in alerts)} / หมด {sum(p['quantity'] == 0 for p in alerts)} รายการ"
-        self.alert_list.controls = [ft.Text("ทุกสินค้าอยู่ในระดับปลอดภัย", color="#087F5B")] if not alerts else [ft.Container(content=ft.Row(controls=[ft.Container(width=8, height=38, bgcolor="#F59E0B" if p["quantity"] else "#DC2626", border_radius=6), ft.Column(controls=[ft.Text(p["name"], weight=ft.FontWeight.W_600), ft.Text(f"เหลือ {p['quantity']} ชิ้น • {p['id']}", size=12, color=ft.Colors.GREY_700)], spacing=2)], spacing=10), padding=10, bgcolor="#FAFBFD", border_radius=10) for p in alerts[:4]]
+        self.alert_list.controls = [ft.Text("ทุกสินค้าอยู่ในระดับปลอดภัย", color="#087F5B")] if not alerts else [ft.Container(content=ft.Row(controls=[ft.Container(width=8, height=38, bgcolor="#F59E0B" if p["quantity"] else "#DC2626", border_radius=6), ft.Column(controls=[ft.Text(p["name"], weight=ft.FontWeight.W_600), ft.Text(f"เหลือ {p['quantity']} ชิ้น • {p['id']}", size=12, color=ft.Colors.GREY_700)], spacing=2)], spacing=10), padding=12, bgcolor="#FFF1F2" if p["quantity"] == 0 else "#FFFAEB", border_radius=10, on_click=lambda e, item=p: self.open_movement(item), tooltip="รับเข้า / เบิกออก") for p in alerts[:4]]
     def open_form(self, e=None):
+        if self.form_dialog is not None and self.form_dialog.open:
+            return
         self.form_dialog = ft.AlertDialog(modal=True, content=self.form_panel, actions=[ft.Button(content="ปิด", on_click=self.close_form)])
         self._page.show_dialog(self.form_dialog)
     def close_form(self, e=None):
@@ -156,7 +171,11 @@ class InventoryView(ft.Container):
         kind = ft.Dropdown(label="รายการ", value="รับเข้า", options=[ft.DropdownOption(x) for x in ["รับเข้า", "เบิกออก"]])
         amount = ft.TextField(label="จำนวน (ชิ้น)", keyboard_type=ft.KeyboardType.NUMBER)
         reason = ft.TextField(label="เหตุผล / เลขที่เอกสาร")
+        completed = False
         def save(e):
+            nonlocal completed
+            if completed:
+                return
             try:
                 qty = int(amount.value or "")
                 if qty <= 0:
@@ -168,6 +187,7 @@ class InventoryView(ft.Container):
             amount.error_text = None
             self._page.update(amount)
             if self.persist(lambda: self.store.adjust(product['id'], qty if kind.value == "รับเข้า" else -qty, reason.value or "")):
+                completed = True
                 self._page.pop_dialog()
                 self.refresh_all()
                 self.show_message("บันทึกการเคลื่อนไหวสต็อกแล้ว")
@@ -182,9 +202,34 @@ class InventoryView(ft.Container):
         try: self.status_group.value = calculate_status(max(0, int(self.quantity_field.value or "0")))
         except ValueError: self.status_group.value = "พร้อมขาย"
         self._page.update(self.status_group)
-    def open_date_picker(self, e): self._page.show_dialog(self.date_picker)
+    def open_date_picker(self, e):
+        if self.date_picker.open:
+            return
+        try:
+            selected = datetime.strptime(self.date_field.value or "", "%d/%m/%Y")
+        except ValueError:
+            selected = datetime.now()
+        # A dismissed dialog can remain mounted during its closing animation.
+        # A fresh picker avoids reopening that same managed dialog instance.
+        self.date_picker = ft.DatePicker(
+            value=selected, first_date=datetime(2020, 1, 1),
+            last_date=datetime(2035, 12, 31), modal=True,
+            on_change=self.set_received_date,
+            on_dismiss=self.dismiss_date_picker,
+            help_text="เลือกวันที่รับสินค้าเข้าคลัง", confirm_text="เลือก", cancel_text="ยกเลิก",
+        )
+        self._page.show_dialog(self.date_picker)
+
+    def dismiss_date_picker(self, e):
+        picker = getattr(e, 'control', None) or self.date_picker
+        picker.open = False
+
     def set_received_date(self, e):
-        if self.date_picker.value: self.date_field.value = self.date_picker.value.strftime("%d/%m/%Y"); self._page.update(self.date_field)
+        picker = getattr(e, 'control', None) or self.date_picker
+        picker.open = False
+        if picker.value:
+            self.date_field.value = picker.value.strftime("%d/%m/%Y")
+            self._page.update(self.date_field)
     def validate_form(self):
         pid, name, category, price_text, qty_text, date = (self.id_field.value or "").strip(), (self.name_field.value or "").strip(), self.category_field.value, (self.price_field.value or "").strip(), (self.quantity_field.value or "").strip(), (self.date_field.value or "").strip()
         pid = self.editing_id or ""
@@ -213,6 +258,13 @@ class InventoryView(ft.Container):
         if not self.persist(lambda: self.store.save(p)): return
         self.finish_save("เพิ่มสินค้าสำเร็จ")
     def edit_product(self, p):
+        # Reload before editing: the table can predate another stock movement.
+        current = next((item for item in self.store.products() if item['id'] == p['id']), None)
+        if current is None:
+            self.refresh_all()
+            self.show_message("สินค้านี้ถูกลบแล้ว กรุณาเลือกรายการใหม่")
+            return
+        p = current
         self.editing_snapshot = p.copy()
         self.editing_id = p["id"]; self.id_field.value, self.name_field.value, self.category_field.value = p["id"], p["name"], p["category"]; self.price_field.value, self.quantity_field.value, self.date_field.value = str(p["price"]), str(p["quantity"]), p["date"]; self.status_group.value = calculate_status(p["quantity"]); self.add_button.disabled, self.save_button.disabled = True, False; self.open_form()
     def save_edit(self, e):
