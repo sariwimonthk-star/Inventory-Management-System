@@ -20,6 +20,9 @@ dev = [
 [tool.flet.metadata]
 title = "ระบบจัดการคลังสินค้า"
 
+[tool.pyrefly]
+python-interpreter-path = ".venv/Scripts/python.exe"
+
 [tool.flet]
 org = "dev.flet"
 company = "Mochill Luv"

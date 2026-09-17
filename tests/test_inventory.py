@@ -57,7 +57,8 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(view.stock_breakdown.value, 'ใกล้หมด 1 · หมดแล้ว 1')
         card = view.summary_card('สินค้าที่ต้องเติม', view.summary_values['low_stock'], ft.Icons.WARNING, '#FFF3DD', '#C05621')
         card.content.on_click(None)
-        self.assertEqual(view.status_filter.value, 'ต้องเติมสต็อก')
+        self.assertEqual(view.active_nav, 'low_stock')
+        view.filter_status('ต้องเติมสต็อก')
         self.assertEqual(len(view.table.rows), 2)
         self.store.adjust('P003', 10, 'restock')
         view.refresh_all()
@@ -230,7 +231,8 @@ class InventoryTests(unittest.TestCase):
         view.open_movement(view.products[0])
         page.pop_dialog()
         view.show_history(None)
-        self.assertEqual(len(page.dialogs), 1)
+        self.assertEqual(view.active_nav, "history")
+        self.assertEqual(len(page.dialogs), 0)
 
     def test_resize_stops_updating_when_width_is_unchanged(self):
         page = PageStub()

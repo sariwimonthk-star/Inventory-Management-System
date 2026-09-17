@@ -15,9 +15,10 @@ class InventoryView(ft.Container):
     NAVY, INDIGO, SURFACE = "#102A43", "#334EAC", "#F6F8FC"
     SIDEBAR = "#172033"
 
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page, store=None, on_logout=None):
         self.editing_snapshot = None
-        self.store = InventoryStore()
+        self.store = store or InventoryStore()
+        self.on_logout = on_logout
         self._page, self.products, self.editing_id = page, self.store.products(), None
         self.id_field = self.field("รหัสสินค้า (อัตโนมัติ)", "สร้างเมื่อบันทึกสำเร็จ", read_only=True)
         self.name_field = self.field("ชื่อสินค้า", "ระบุชื่อที่ค้นหาได้ง่าย")
@@ -45,7 +46,7 @@ class InventoryView(ft.Container):
         form = self.panel(ft.Column(controls=[self.heading(ft.Icons.EDIT_NOTE, "ข้อมูลสินค้า", "เพิ่มหรือปรับข้อมูลสินค้าในคลัง"), ft.Divider(height=1), ft.Text("ข้อมูลสินค้า", weight=ft.FontWeight.W_600, color=self.NAVY), ft.Row(controls=[self.id_field, self.name_field, self.category_field], wrap=True, run_spacing=12), ft.Row(controls=[self.price_field, self.quantity_field, ft.Row(controls=[self.date_field, ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, icon_color=self.INDIGO, tooltip="เลือกวันที่รับเข้า", on_click=self.open_date_picker)], vertical_alignment=ft.CrossAxisAlignment.END, spacing=0)], wrap=True, run_spacing=12), ft.Container(content=ft.Column(controls=[ft.Text("สถานะสินค้า", weight=ft.FontWeight.W_600, color=self.NAVY), ft.Text("คำนวณจากจำนวนคงเหลือโดยอัตโนมัติ", size=12, color=ft.Colors.GREY_700), self.status_group], spacing=4), padding=14, bgcolor="#F7FAFC", border_radius=10), ft.Row(controls=[self.add_button, self.save_button, self.clear_button], wrap=True, spacing=10)], spacing=14, scroll=ft.ScrollMode.AUTO, height=460), width=660)
         self.form_panel = form
         self.form_dialog = None
-        alert_panel = ft.Container(content=ft.Column(controls=[self.heading(ft.Icons.NOTIFICATIONS_ACTIVE, "แจ้งเตือนสต็อก", "คลิกรายการเพื่อเติมสต็อก"), ft.Divider(height=1), self.alert_count, self.alert_list, ft.Button(content="ดูรายการที่ต้องเติมทั้งหมด", on_click=lambda e: self.filter_status("ต้องเติมสต็อก")), ft.Container(content=ft.Text("แจ้งเตือนเมื่อคงเหลือน้อยกว่า 10 ชิ้น", size=12, color=ft.Colors.GREY_700), padding=10, bgcolor="#EEF2FF", border_radius=8)], spacing=10), col={"xs": 12, "xl": 3}, padding=14, bgcolor="#FAFBFD", border_radius=12)
+        alert_panel = ft.Container(content=ft.Column(controls=[self.heading(ft.Icons.NOTIFICATIONS_ACTIVE, "แจ้งเตือนสต็อก", "คลิกรายการเพื่อเติมสต็อก"), ft.Divider(height=1), self.alert_count, self.alert_list, ft.Button(content="ดูรายการที่ต้องเติมทั้งหมด", on_click=self.show_low_stock), ft.Container(content=ft.Text("แจ้งเตือนเมื่อคงเหลือน้อยกว่า 10 ชิ้น", size=12, color=ft.Colors.GREY_700), padding=10, bgcolor="#EEF2FF", border_radius=8)], spacing=10), col={"xs": 12, "xl": 3}, padding=14, bgcolor="#FAFBFD", border_radius=12)
         catalogue_header = ft.Row(controls=[ft.Container(content=self.heading(ft.Icons.TABLE_ROWS, "รายการสินค้า", "ค้นหา ตรวจสอบ และจัดการรายการทั้งหมด"), expand=True), ft.Button(content="เพิ่มสินค้า", icon=ft.Icons.ADD, bgcolor=self.INDIGO, color=ft.Colors.WHITE, on_click=self.new_product)], vertical_alignment=ft.CrossAxisAlignment.CENTER)
         self.table.width = self.table_width(page.width)
         self.table_area = ft.Row(controls=[self.table], scroll=ft.ScrollMode.ADAPTIVE)
@@ -89,6 +90,9 @@ class InventoryView(ft.Container):
             ("history", "ประวัติสต็อก", ft.Icons.HISTORY_ROUNDED, self.show_history_page),
         ]
         nav = [self.nav_item(*item) for item in menu]
+        if self.on_logout:
+            user = self.store.user
+            nav.extend([ft.Container(content=ft.Text(f"{user['name']} · ผู้ดูแลคลัง", color="#C7D2E3", size=12), padding=16), ft.Button(content="ออกจากระบบ", icon=ft.Icons.LOGOUT, on_click=lambda e: self.on_logout())])
         return ft.Container(
             content=ft.Column(controls=[
                 ft.Container(content=ft.Row(controls=[
@@ -124,37 +128,77 @@ class InventoryView(ft.Container):
         self._page.update()
 
     def render_dashboard(self):
-        self.main_content.controls = [self.hero(), self.summary_cards, self.dashboard_panel()]
+        self.main_content.controls = [self.hero("ภาพรวมคลังสินค้า"), self.summary_cards, self.dashboard_panel(), self.dashboard_details()]
 
     def show_dashboard(self, e=None):
         self.clear_search(None)
-        self.set_page("dashboard", [self.hero(), self.summary_cards, self.dashboard_panel()])
+        self.set_page("dashboard", [self.hero("ภาพรวมคลังสินค้า"), self.summary_cards, self.dashboard_panel(), self.dashboard_details()])
 
     def show_inventory(self, e=None):
         self.clear_search(None)
         self.set_page("inventory", [self.hero(), self.catalogue])
 
     def show_low_stock(self, e=None):
-        self.set_page("low_stock", [self.hero(), self.low_stock_panel()])
+        self.products = self.store.products()
+        self.set_page("low_stock", [self.hero(), self.back_to_inventory(), self.low_stock_panel()])
+
+    def back_to_inventory(self):
+        return ft.Row(controls=[ft.Button(content="กลับหน้าสินค้าคงคลัง", icon=ft.Icons.ARROW_BACK, on_click=self.show_inventory)])
 
     def show_history_page(self, e=None):
         entries = self.store.history()
         history = self.panel(ft.Column(controls=[
             self.heading(ft.Icons.HISTORY_ROUNDED, "ประวัติสต็อก", "รายการเคลื่อนไหวล่าสุด 200 รายการ"),
             ft.Divider(height=1),
-            ft.ListView(controls=[ft.Container(content=ft.Text(f"{r['created']} | {r['product_id']} {r['name']} | {r['delta']:+} ชิ้น → เหลือ {r['balance']} | {r['reason']}"), padding=10, border=ft.Border.only(bottom=ft.BorderSide(1, "#EDF1F7"))) for r in entries] or [ft.Container(content=ft.Text("ยังไม่มีประวัติการเคลื่อนไหว", color="#64748B"), padding=16)], height=510, spacing=0),
+            ft.ListView(controls=[ft.Container(content=ft.Text(f"{r['created']} | {r['product_id']} {r['name']} | {r['delta']:+} ชิ้น → เหลือ {r['balance']} | {r['reason']} | ผู้ทำรายการ: {r.get('actor') or 'ข้อมูลเดิม'}"), padding=10, border=ft.Border.only(bottom=ft.BorderSide(1, "#EDF1F7"))) for r in entries] or [ft.Container(content=ft.Text("ยังไม่มีประวัติการเคลื่อนไหว", color="#64748B"), padding=16)], height=510, spacing=0),
         ], spacing=12))
-        self.set_page("history", [self.hero(), history])
+        self.set_page("history", [self.hero(), self.back_to_inventory(), history])
 
     def dashboard_panel(self):
         summary = inventory_summary(self.products)
         message = "ทุกสินค้าอยู่ในระดับปลอดภัย" if summary["needs_stock"] == 0 else f"มีสินค้า {summary['needs_stock']} รายการที่ต้องตรวจสอบหรือเติมสต็อก"
         color = "#087F5B" if summary["needs_stock"] == 0 else "#B45309"
         return self.panel(ft.Column(controls=[
-            self.heading(ft.Icons.INSIGHTS_ROUNDED, "สถานะคลังสินค้า", "สรุปข้อมูลสำหรับติดตามงานวันนี้"),
-            ft.Divider(height=1),
-            ft.Container(content=ft.Row(controls=[ft.Icon(ft.Icons.CHECK_CIRCLE if summary["needs_stock"] == 0 else ft.Icons.WARNING_AMBER_ROUNDED, color=color), ft.Text(message, weight=ft.FontWeight.W_600, color=color, expand=True), ft.Button(content="ดูรายละเอียด", icon=ft.Icons.ARROW_FORWARD, on_click=self.show_low_stock)], vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=16, bgcolor="#ECFDF5" if summary["needs_stock"] == 0 else "#FFFBEB", border_radius=12),
+            ft.Container(content=ft.Row(controls=[ft.Icon(ft.Icons.CHECK_CIRCLE if summary["needs_stock"] == 0 else ft.Icons.WARNING_AMBER_ROUNDED, color=color), ft.Text(message, weight=ft.FontWeight.W_600, color=color, expand=True), ft.Button(content="ดูรายละเอียด", icon=ft.Icons.ARROW_FORWARD, on_click=self.show_low_stock)], vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=10, bgcolor="#ECFDF5" if summary["needs_stock"] == 0 else "#FFFBEB", border_radius=12),
         ], spacing=12))
+
+    def dashboard_details(self):
+        counts = {category: 0 for category in CATEGORIES}
+        for product in self.products:
+            counts[product['category']] = counts.get(product['category'], 0) + 1
+        total = len(self.products)
+        categories = self.panel(ft.Column(controls=[
+            self.heading(ft.Icons.CATEGORY, "สินค้าตามหมวดหมู่", "จำนวนรายการสินค้า ไม่ใช่จำนวนชิ้น"),
+            ft.Divider(height=1),
+            *[ft.Column(controls=[
+                ft.Row(controls=[ft.Text(category, expand=True, color=self.NAVY), ft.Text(f"{count} รายการ", color="#64748B")]),
+                ft.ProgressBar(value=count / total if total else 0, color=self.INDIGO, bgcolor="#EDF1F7", height=8, border_radius=4),
+            ], spacing=7) for category, count in counts.items()],
+            ft.Text(f"รวม {total} รายการ", size=12, color="#64748B"),
+        ], spacing=16))
+        entries = self.store.history()[:5]
+        rows = []
+        for entry in entries:
+            positive = entry['delta'] > 0
+            color = "#087F5B" if positive else "#B45309"
+            rows.append(ft.Container(content=ft.Row(controls=[
+                ft.Icon(ft.Icons.ARROW_DOWNWARD if positive else ft.Icons.ARROW_UPWARD, color=color, size=20),
+                ft.Column(controls=[
+                    ft.Text(f"{entry['product_id']} · {entry['name']}", weight=ft.FontWeight.W_600, color=self.NAVY),
+                    ft.Text(f"{entry['reason']} · {entry.get('actor') or 'ข้อมูลเดิม'}", size=12, color="#64748B"),
+                    ft.Text(entry['created'], size=11, color="#64748B"),
+                ], spacing=3, expand=True),
+                ft.Text(f"{entry['delta']:+,} ชิ้น", weight=ft.FontWeight.BOLD, color=color),
+            ], spacing=12), padding=10, border=ft.Border.only(bottom=ft.BorderSide(1, "#EDF1F7"))))
+        history = self.panel(ft.Column(controls=[
+            self.heading(ft.Icons.HISTORY, "ความเคลื่อนไหวล่าสุด", "5 รายการล่าสุดจากประวัติสต็อก"),
+            ft.Divider(height=1),
+            *(rows or [ft.Container(content=ft.Text("ยังไม่มีประวัติการเคลื่อนไหว", color="#64748B"), padding=20)]),
+            ft.Button(content="ดูประวัติทั้งหมด", icon=ft.Icons.ARROW_FORWARD, on_click=self.show_history_page),
+        ], spacing=10))
+        categories.col = {"xs": 12, "lg": 6}
+        history.col = {"xs": 12, "lg": 6}
+        return ft.ResponsiveRow(controls=[categories, history], spacing=16, run_spacing=16)
 
     def low_stock_panel(self):
         alerts = sorted((p for p in self.products if p["quantity"] < 10), key=lambda p: p["quantity"])
@@ -172,10 +216,10 @@ class InventoryView(ft.Container):
             ft.Divider(height=1),
             *cards,
         ], spacing=10))
-    def hero(self):
+    def hero(self, title=None):
         return ft.Container(content=ft.Row(controls=[
             ft.Container(content=ft.Icon(ft.Icons.WAREHOUSE_ROUNDED, color="#FFFFFF", size=27), padding=12, bgcolor=self.INDIGO, border_radius=14),
-            ft.Column(controls=[ft.Text(APP_HEADING, size=26, weight=ft.FontWeight.BOLD, color=self.NAVY), ft.Text(APP_TAGLINE, size=13, color="#64748B")], spacing=2, expand=True),
+            ft.Column(controls=[ft.Text(title or APP_HEADING, size=26, weight=ft.FontWeight.BOLD, color=self.NAVY), ft.Text(APP_TAGLINE, size=13, color="#64748B")], spacing=2, expand=True),
             ft.Container(content=ft.Row(controls=[ft.Icon(ft.Icons.CALENDAR_MONTH, size=16, color="#64748B"), ft.Text(datetime.now().strftime("%d/%m/%Y"), size=12, color="#64748B")], tight=True), padding=10, bgcolor="#FFFFFF", border_radius=10),
         ], spacing=14), padding=ft.Padding.only(bottom=8))
     def panel(self, content, width=None): return ft.Card(content=ft.Container(content=content, padding=16, width=width, border_radius=16, border=ft.Border.all(1, "#E7ECF4")), elevation=0, bgcolor=ft.Colors.WHITE)
@@ -189,7 +233,7 @@ class InventoryView(ft.Container):
             content=ft.Row(controls=[ft.Column(controls=details, spacing=5, expand=True), ft.Container(content=ft.Icon(icon, color=accent, size=25), padding=12, bgcolor=tint, border_radius=12)], vertical_alignment=ft.CrossAxisAlignment.CENTER),
             height=104, padding=16, border_radius=14, border=ft.Border.all(1, "#E7ECF4"),
             tooltip="ผลรวมราคาต่อหน่วย × จำนวนคงเหลือของสินค้าทั้งหมด" if value is self.summary_values["value"] else None,
-            on_click=lambda e: self.filter_status("ต้องเติมสต็อก" if needs_stock else "ทั้งหมด")),
+            on_click=self.show_low_stock if needs_stock else self.show_inventory),
             elevation=0, bgcolor=ft.Colors.WHITE, width=270, col={"xs": 12, "sm": 6, "xl": 3})
     def make_rows(self, products):
         return [ft.DataRow(cells=[ft.DataCell(ft.Text(p["id"], weight=ft.FontWeight.W_600, color=self.INDIGO)), ft.DataCell(ft.Text(p["name"], weight=ft.FontWeight.W_600, color=self.NAVY)), ft.DataCell(ft.Text(p["category"])), ft.DataCell(ft.Text(f"฿{p['price']:,.2f}")), ft.DataCell(ft.Text(str(p["quantity"]), weight=ft.FontWeight.BOLD, color="#B91C1C" if p["quantity"] == 0 else "#B45309" if p["quantity"] < 10 else self.NAVY)), ft.DataCell(ft.Text(p["date"])), ft.DataCell(self.status_badge(calculate_status(p["quantity"]))), ft.DataCell(ft.Row(controls=[ft.IconButton(icon=ft.Icons.SWAP_VERT, icon_color=self.INDIGO, tooltip="รับเข้า / เบิกออก", on_click=lambda e, item=p: self.open_movement(item)), ft.IconButton(icon=ft.Icons.EDIT_OUTLINED, icon_color=self.INDIGO, tooltip="แก้ไข", on_click=lambda e, item=p: self.edit_product(item)), ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color="#C53030", tooltip="ลบ", on_click=lambda e, item=p: self.confirm_delete(item))], spacing=0))]) for p in products]
@@ -237,7 +281,7 @@ class InventoryView(ft.Container):
         if self.active_nav == "dashboard":
             self.render_dashboard()
         elif self.active_nav == "low_stock":
-            self.main_content.controls = [self.hero(), self.low_stock_panel()]
+            self.main_content.controls = [self.hero(), self.back_to_inventory(), self.low_stock_panel()]
         self._page.update()
 
     def filter_status(self, status):
@@ -301,10 +345,8 @@ class InventoryView(ft.Container):
                 self.show_message("บันทึกการเคลื่อนไหวสต็อกแล้ว")
         self._page.show_dialog(ft.AlertDialog(modal=True, title=ft.Text(f"รับเข้า / เบิกออก: {product['name']}"), content=ft.Column(controls=[ft.Text(f"คงเหลือ {product['quantity']} ชิ้น"), kind, amount, reason], tight=True, width=400), actions=[ft.Button(content="ยกเลิก", on_click=lambda e: self._page.pop_dialog()), ft.Button(content="บันทึก", on_click=save)]))
 
-    def show_history(self, e):
-        rows = self.store.history()
-        entries = [ft.Text(f"{r['created']} | {r['product_id']} {r['name']} | {r['delta']:+} ชิ้น → เหลือ {r['balance']} | {r['reason']}") for r in rows]
-        self._page.show_dialog(ft.AlertDialog(title=ft.Text("ประวัติสต็อก (ล่าสุด 200 รายการ)"), content=ft.Column(controls=entries or [ft.Text("ยังไม่มีประวัติการเคลื่อนไหว")], width=760, height=400, scroll=ft.ScrollMode.AUTO), actions=[ft.Button(content="ปิด", on_click=lambda e: self._page.pop_dialog())]))
+    def show_history(self, e=None):
+        self.show_history_page(e)
 
     def update_status_preview(self, e):
         try: self.status_group.value = calculate_status(max(0, int(self.quantity_field.value or "0")))

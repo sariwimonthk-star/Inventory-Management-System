@@ -66,11 +66,14 @@ def validate_product(product):
 
 class InventoryStore:
     def __init__(self, path=None):
+        self.actor = None
         self.path = Path(path) if path is not None else default_database_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             db.execute("CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY COLLATE NOCASE, name TEXT NOT NULL, category TEXT NOT NULL, price REAL NOT NULL CHECK(price > 0), quantity INTEGER NOT NULL CHECK(quantity >= 0), date TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS movements (seq INTEGER PRIMARY KEY, product_id TEXT NOT NULL, name TEXT NOT NULL, delta INTEGER NOT NULL, balance INTEGER NOT NULL, reason TEXT NOT NULL, created TEXT NOT NULL DEFAULT (datetime('now','localtime')))")
+            if 'actor' not in {row['name'] for row in db.execute("PRAGMA table_info(movements)")}:
+                db.execute("ALTER TABLE movements ADD COLUMN actor TEXT")
             db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY)")
             if not db.execute("SELECT 1 FROM settings WHERE key='seeded'").fetchone():
                 for p in SAMPLE_PRODUCTS:
@@ -116,7 +119,7 @@ class InventoryStore:
                 db.execute("INSERT INTO products VALUES (:id,:name,:category,:price,:quantity,:date)", product)
             delta = product['quantity'] - (old['quantity'] if old else 0)
             if delta or not old:
-                db.execute("INSERT INTO movements(product_id,name,delta,balance,reason) VALUES (?,?,?,?,?)", (product['id'], product['name'], delta, product['quantity'], "ปรับยอดจากฟอร์ม" if old else "ยอดเริ่มต้น"))
+                db.execute("INSERT INTO movements(product_id,name,delta,balance,reason,actor) VALUES (?,?,?,?,?,?)", (product['id'], product['name'], delta, product['quantity'], "ปรับยอดจากฟอร์ม" if old else "ยอดเริ่มต้น", self.actor))
         return product['id']
 
     def adjust(self, pid, delta, reason):
@@ -132,14 +135,14 @@ class InventoryStore:
                 raise ValueError(f"เบิกเกินยอดคงเหลือ {p['quantity']} ชิ้นไม่ได้")
             validate_product({**dict(p), 'quantity': balance})
             db.execute("UPDATE products SET quantity=? WHERE id=?", (balance, pid))
-            db.execute("INSERT INTO movements(product_id,name,delta,balance,reason) VALUES (?,?,?,?,?)", (pid, p['name'], delta, balance, reason.strip()))
+            db.execute("INSERT INTO movements(product_id,name,delta,balance,reason,actor) VALUES (?,?,?,?,?,?)", (pid, p['name'], delta, balance, reason.strip(), self.actor))
 
     def delete(self, pid):
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
             p = db.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
             if p:
-                db.execute("INSERT INTO movements(product_id,name,delta,balance,reason) VALUES (?,?,?,?,?)", (pid, p['name'], -p['quantity'], 0, "ลบสินค้า"))
+                db.execute("INSERT INTO movements(product_id,name,delta,balance,reason,actor) VALUES (?,?,?,?,?,?)", (pid, p['name'], -p['quantity'], 0, "ลบสินค้า", self.actor))
                 db.execute("DELETE FROM products WHERE id=?", (pid,))
 
     def history(self):
