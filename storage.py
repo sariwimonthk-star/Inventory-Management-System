@@ -12,7 +12,6 @@ from models import CATEGORIES, SAMPLE_PRODUCTS
 
 MAX_QUANTITY = 2**63 - 1
 
-
 def default_database_path():
     """Keep mutable data outside the source tree watched by `flet run -r`."""
     root = Path(__file__).resolve().parent

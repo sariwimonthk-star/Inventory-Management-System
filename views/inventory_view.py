@@ -13,6 +13,7 @@ APP_TAGLINE = "จัดการสินค้าและติดตาม�
 
 class InventoryView(ft.Container):
     NAVY, INDIGO, SURFACE = "#102A43", "#334EAC", "#F6F8FC"
+    SIDEBAR = "#172033"
 
     def __init__(self, page: ft.Page):
         self.editing_snapshot = None
@@ -62,13 +63,115 @@ class InventoryView(ft.Container):
         self.result_count.color = "#64748B"
         toolbar = ft.Row(controls=[self.search_field, self.category_filter, self.status_filter, self.search_button, self.clear_search_button], wrap=True, run_spacing=10)
         catalogue = self.panel(ft.ResponsiveRow(controls=[ft.Column(controls=[catalogue_header, toolbar, ft.Row(controls=[self.result_count, ft.Button(content="ประวัติสต็อก", icon=ft.Icons.HISTORY, on_click=self.show_history)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), self.table_area], spacing=12, col={"xs": 12, "xl": 9}), alert_panel], spacing=20, run_spacing=20))
-        content = ft.Column(controls=[self.hero(), ft.ResponsiveRow(controls=[self.summary_card("สินค้าในระบบ", self.summary_values["items"], ft.Icons.INVENTORY_2, "#E8EEFF", self.INDIGO), self.summary_card("จำนวนคงเหลือ", self.summary_values["quantity"], ft.Icons.STACKED_BAR_CHART, "#E3F9EA", "#087F5B"), self.summary_card("สินค้าที่ต้องเติม", self.summary_values["low_stock"], ft.Icons.WARNING_AMBER_ROUNDED, "#FFF3DD", "#C05621"), self.summary_card("มูลค่าสินค้าคงเหลือ", self.summary_values["value"], ft.Icons.ACCOUNT_BALANCE_WALLET, "#F1EAFF", "#6D28D9")], spacing=12), catalogue], scroll=ft.ScrollMode.AUTO, spacing=14, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
-        super().__init__(content=content, padding=20, bgcolor=self.SURFACE, expand=True)
+        self.summary_cards = ft.ResponsiveRow(controls=[
+            self.summary_card("สินค้าในระบบ", self.summary_values["items"], ft.Icons.INVENTORY_2, "#E8EEFF", self.INDIGO),
+            self.summary_card("จำนวนคงเหลือ", self.summary_values["quantity"], ft.Icons.STACKED_BAR_CHART, "#E3F9EA", "#087F5B"),
+            self.summary_card("สินค้าที่ต้องเติม", self.summary_values["low_stock"], ft.Icons.WARNING_AMBER_ROUNDED, "#FFF3DD", "#C05621"),
+            self.summary_card("มูลค่าสินค้าคงเหลือ", self.summary_values["value"], ft.Icons.ACCOUNT_BALANCE_WALLET, "#F1EAFF", "#6D28D9"),
+        ], spacing=12)
+        self.catalogue = catalogue
+        self.main_content = ft.Column(scroll=ft.ScrollMode.AUTO, spacing=14, horizontal_alignment=ft.CrossAxisAlignment.STRETCH, expand=True)
+        self.active_nav = "dashboard"
+        self.nav_controls = {}
+        sidebar = self.build_sidebar()
+        super().__init__(content=ft.Row(controls=[sidebar, ft.Container(content=self.main_content, padding=20, bgcolor=self.SURFACE, expand=True)], spacing=0, expand=True, vertical_alignment=ft.CrossAxisAlignment.STRETCH), bgcolor=self.SURFACE, expand=True)
         self.update_summary_values(); self.update_alerts()
+        self.render_dashboard()
         page.on_resize = self.on_resize
 
     def field(self, label, hint, **kwargs): return ft.TextField(label=label, hint_text=hint, width=180, **kwargs)
     def metric(self, color): return ft.Text("0", size=25, weight=ft.FontWeight.BOLD, color=color)
+    def build_sidebar(self):
+        menu = [
+            ("dashboard", "ภาพรวม", ft.Icons.GRID_VIEW_ROUNDED, self.show_dashboard),
+            ("inventory", "สินค้าคงคลัง", ft.Icons.INVENTORY_2_OUTLINED, self.show_inventory),
+            ("low_stock", "สินค้าใกล้หมด", ft.Icons.WARNING_AMBER_ROUNDED, self.show_low_stock),
+            ("history", "ประวัติสต็อก", ft.Icons.HISTORY_ROUNDED, self.show_history_page),
+        ]
+        nav = [self.nav_item(*item) for item in menu]
+        return ft.Container(
+            content=ft.Column(controls=[
+                ft.Container(content=ft.Row(controls=[
+                    ft.Container(content=ft.Icon(ft.Icons.INVENTORY_2_ROUNDED, color="#FFFFFF", size=23), bgcolor="#FBBF24", padding=9, border_radius=10),
+                    ft.Column(controls=[ft.Text("INVENTORY", size=16, weight=ft.FontWeight.BOLD, color="#FFFFFF"), ft.Text("MANAGEMENT SYSTEM", size=9, color="#9AA8BF")], spacing=1),
+                ], spacing=10), padding=ft.Padding.only(left=16, right=16, top=22, bottom=22)),
+                ft.Divider(height=1, color="#2A3851"),
+                ft.Container(content=ft.Text("เมนูหลัก", size=12, weight=ft.FontWeight.BOLD, color="#93A4BE"), padding=ft.Padding.only(left=18, top=18, bottom=7)),
+                *nav,
+                ft.Container(expand=True),
+                ft.Divider(height=1, color="#2A3851"),
+                ft.Container(content=ft.Text("ระบบจัดการคลังสินค้า", size=11, color="#93A4BE"), padding=16),
+            ], spacing=3, expand=True), width=245, bgcolor=self.SIDEBAR,
+        )
+
+    def nav_item(self, key, label, icon, action):
+        item = ft.Container(content=ft.Row(controls=[ft.Icon(icon, size=21), ft.Text(label, size=14, weight=ft.FontWeight.W_600)], spacing=13), padding=ft.Padding.symmetric(horizontal=16, vertical=13), margin=ft.Margin.symmetric(horizontal=10), border_radius=10, on_click=action, ink=True)
+        self.nav_controls[key] = item
+        self.paint_nav()
+        return item
+
+    def paint_nav(self):
+        for key, item in self.nav_controls.items():
+            selected = key == self.active_nav
+            item.bgcolor = "#FBBF24" if selected else None
+            item.content.controls[0].color = "#172033" if selected else "#C7D2E3"
+            item.content.controls[1].color = "#172033" if selected else "#E5EAF2"
+
+    def set_page(self, key, controls):
+        self.active_nav = key
+        self.paint_nav()
+        self.main_content.controls = controls
+        self._page.update()
+
+    def render_dashboard(self):
+        self.main_content.controls = [self.hero(), self.summary_cards, self.dashboard_panel()]
+
+    def show_dashboard(self, e=None):
+        self.clear_search(None)
+        self.set_page("dashboard", [self.hero(), self.summary_cards, self.dashboard_panel()])
+
+    def show_inventory(self, e=None):
+        self.clear_search(None)
+        self.set_page("inventory", [self.hero(), self.catalogue])
+
+    def show_low_stock(self, e=None):
+        self.set_page("low_stock", [self.hero(), self.low_stock_panel()])
+
+    def show_history_page(self, e=None):
+        entries = self.store.history()
+        history = self.panel(ft.Column(controls=[
+            self.heading(ft.Icons.HISTORY_ROUNDED, "ประวัติสต็อก", "รายการเคลื่อนไหวล่าสุด 200 รายการ"),
+            ft.Divider(height=1),
+            ft.ListView(controls=[ft.Container(content=ft.Text(f"{r['created']} | {r['product_id']} {r['name']} | {r['delta']:+} ชิ้น → เหลือ {r['balance']} | {r['reason']}"), padding=10, border=ft.Border.only(bottom=ft.BorderSide(1, "#EDF1F7"))) for r in entries] or [ft.Container(content=ft.Text("ยังไม่มีประวัติการเคลื่อนไหว", color="#64748B"), padding=16)], height=510, spacing=0),
+        ], spacing=12))
+        self.set_page("history", [self.hero(), history])
+
+    def dashboard_panel(self):
+        summary = inventory_summary(self.products)
+        message = "ทุกสินค้าอยู่ในระดับปลอดภัย" if summary["needs_stock"] == 0 else f"มีสินค้า {summary['needs_stock']} รายการที่ต้องตรวจสอบหรือเติมสต็อก"
+        color = "#087F5B" if summary["needs_stock"] == 0 else "#B45309"
+        return self.panel(ft.Column(controls=[
+            self.heading(ft.Icons.INSIGHTS_ROUNDED, "สถานะคลังสินค้า", "สรุปข้อมูลสำหรับติดตามงานวันนี้"),
+            ft.Divider(height=1),
+            ft.Container(content=ft.Row(controls=[ft.Icon(ft.Icons.CHECK_CIRCLE if summary["needs_stock"] == 0 else ft.Icons.WARNING_AMBER_ROUNDED, color=color), ft.Text(message, weight=ft.FontWeight.W_600, color=color, expand=True), ft.Button(content="ดูรายละเอียด", icon=ft.Icons.ARROW_FORWARD, on_click=self.show_low_stock)], vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=16, bgcolor="#ECFDF5" if summary["needs_stock"] == 0 else "#FFFBEB", border_radius=12),
+        ], spacing=12))
+
+    def low_stock_panel(self):
+        alerts = sorted((p for p in self.products if p["quantity"] < 10), key=lambda p: p["quantity"])
+        cards = [ft.Container(
+            content=ft.Row(controls=[
+                ft.Container(width=9, height=54, bgcolor="#DC2626" if p["quantity"] == 0 else "#F59E0B", border_radius=8),
+                ft.Column(controls=[ft.Text(p["name"], size=16, weight=ft.FontWeight.BOLD, color=self.NAVY), ft.Text(f"{p['id']} · {p['category']} · เหลือ {p['quantity']} ชิ้น", size=13, color="#64748B")], spacing=4, expand=True),
+                ft.Button(content="รับเข้า / เบิกออก", icon=ft.Icons.SWAP_VERT, on_click=lambda e, item=p: self.open_movement(item)),
+            ], vertical_alignment=ft.CrossAxisAlignment.CENTER), padding=14, bgcolor="#FFF1F2" if p["quantity"] == 0 else "#FFFAEB", border_radius=12,
+        ) for p in alerts]
+        if not cards:
+            cards = [ft.Container(content=ft.Text("ทุกสินค้าอยู่ในระดับปลอดภัย", color="#087F5B"), padding=16, bgcolor="#ECFDF5", border_radius=10)]
+        return self.panel(ft.Column(controls=[
+            self.heading(ft.Icons.WARNING_AMBER_ROUNDED, "สินค้าใกล้หมด", "รายการที่เหลือน้อยกว่า 10 ชิ้น"),
+            ft.Divider(height=1),
+            *cards,
+        ], spacing=10))
     def hero(self):
         return ft.Container(content=ft.Row(controls=[
             ft.Container(content=ft.Icon(ft.Icons.WAREHOUSE_ROUNDED, color="#FFFFFF", size=27), padding=12, bgcolor=self.INDIGO, border_radius=14),
@@ -87,7 +190,7 @@ class InventoryView(ft.Container):
             height=104, padding=16, border_radius=14, border=ft.Border.all(1, "#E7ECF4"),
             tooltip="ผลรวมราคาต่อหน่วย × จำนวนคงเหลือของสินค้าทั้งหมด" if value is self.summary_values["value"] else None,
             on_click=lambda e: self.filter_status("ต้องเติมสต็อก" if needs_stock else "ทั้งหมด")),
-            elevation=0, bgcolor=ft.Colors.WHITE, col={"xs": 12, "sm": 6, "xl": 3})
+            elevation=0, bgcolor=ft.Colors.WHITE, width=270, col={"xs": 12, "sm": 6, "xl": 3})
     def make_rows(self, products):
         return [ft.DataRow(cells=[ft.DataCell(ft.Text(p["id"], weight=ft.FontWeight.W_600, color=self.INDIGO)), ft.DataCell(ft.Text(p["name"], weight=ft.FontWeight.W_600, color=self.NAVY)), ft.DataCell(ft.Text(p["category"])), ft.DataCell(ft.Text(f"฿{p['price']:,.2f}")), ft.DataCell(ft.Text(str(p["quantity"]), weight=ft.FontWeight.BOLD, color="#B91C1C" if p["quantity"] == 0 else "#B45309" if p["quantity"] < 10 else self.NAVY)), ft.DataCell(ft.Text(p["date"])), ft.DataCell(self.status_badge(calculate_status(p["quantity"]))), ft.DataCell(ft.Row(controls=[ft.IconButton(icon=ft.Icons.SWAP_VERT, icon_color=self.INDIGO, tooltip="รับเข้า / เบิกออก", on_click=lambda e, item=p: self.open_movement(item)), ft.IconButton(icon=ft.Icons.EDIT_OUTLINED, icon_color=self.INDIGO, tooltip="แก้ไข", on_click=lambda e, item=p: self.edit_product(item)), ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, icon_color="#C53030", tooltip="ลบ", on_click=lambda e, item=p: self.confirm_delete(item))], spacing=0))]) for p in products]
     def status_badge(self, status):
@@ -131,6 +234,10 @@ class InventoryView(ft.Container):
         self.result_count.value = f"พบ {len(products)} จาก {len(self.products)} รายการ" if products else "ไม่พบสินค้า — ลองเปลี่ยนคำค้นหาหรือกดแสดงทั้งหมด"
         self.update_summary_values()
         self.update_alerts()
+        if self.active_nav == "dashboard":
+            self.render_dashboard()
+        elif self.active_nav == "low_stock":
+            self.main_content.controls = [self.hero(), self.low_stock_panel()]
         self._page.update()
 
     def filter_status(self, status):
@@ -142,7 +249,8 @@ class InventoryView(ft.Container):
     @staticmethod
     def table_width(width):
         width = width or 1280
-        return max(1000, round((width - 110) * (0.75 if width >= 1200 else 1)))
+        # Leave room for the persistent left navigation and the alert panel.
+        return max(900, round((width - 380) * (0.75 if width >= 1500 else 1)))
 
     def on_resize(self, e):
         # Layout notifications can repeat without the available width changing.
